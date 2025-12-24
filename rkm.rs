@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: GPL-2.0
+
+//! Rust LKM Template
+
+mod module;
+
+use module::test;
+
+use kernel::prelude::*;
+
+module! {
+    type: RustLkmTemplate,
+    name: "woc2026-hello-from-rkm",
+    authors: ["fermata"],
+    description: "RKM implements a simple rust kernel module",
+    license: "GPL",
+}
+
+struct RustLkmTemplate(&'static str);
+
+impl kernel::Module for RustLkmTemplate {
+    fn init(_name: &'static CStr, _module: &'static ThisModule) -> Result<Self> {
+        let message: &'static str = "Hello World!";
+        test();
+        pr_info!("Rust LKM Template (init)\n");
+        pr_info!("Am I built-in? {}\n", !cfg!(MODULE));
+
+        Ok(RustLkmTemplate(message))
+    }
+}
+
+impl Drop for RustLkmTemplate {
+    fn drop(&mut self) {
+        pr_info!("My message is: {}\n", self.0);
+        pr_info!("Rust LKM Template (exit)\n");
+    }
+}
