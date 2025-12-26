@@ -15,7 +15,7 @@
 
 ```
 woc2026-hello-from-skm/
-├── src/                       # Rust 内核模块源代码
+├── src/                      # Rust 内核模块源代码
 │   ├── module.rs             # 模块入口和初始化
 │   ├── tetris.rs             # 游戏逻辑和设备驱动
 │   ├── Kbuild                # 内核构建配置

@@ -36,6 +36,7 @@ impl kernel::Module for SASTKernelModule {
 
 impl Drop for SASTKernelModule {
     fn drop(&mut self) {
+        pr_info!("Tetris module unloading, cleaning up global game state\n");
         pr_info!("bye bye\n");
     }
 }

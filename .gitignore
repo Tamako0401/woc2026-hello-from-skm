@@ -66,3 +66,5 @@ src/woc2026_hello_from_rkm.ko
 src/modules.order
 src/modules.order
 src/modules.order
+.rootfs_stamp
+.dir-locals.el
