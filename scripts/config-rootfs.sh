@@ -32,7 +32,26 @@ ifconfig eth0 up
 udhcpc -i eth0
 telnetd -l /bin/sh
 insmod /lib/modules/magic.ko
+
 clear
+cat <<'BANNER'
+                                   ...,c,,      
+Welcome to                     . ., 0.l ':       
+                            c c' ' c'   l       
+        ,odc      .ck    .,.;' .  .';loodoo,.   
+     .X..'cXX    .XWM,  ';'..,cxxdl;..   .k0:   
+     'WK.   .   ;0,oMx   ..dkl'...c' .:;;KMo'.  
+      'NN,     ,o  'NW  :0d. :0N:kN.,:;ddX,'    
+       .OKc  .kl'cl;KMd0O    xMMk.    .lN.      
+   ..   .Ok ,NXk;   oMMK       ;kWl   'NN0:     
+  .;lkxdc.  c;      .ck     ...',c.   0O'       
+        
+Try:
+  - Read kernel logs:  dmesg | tail
+  - List modules:      lsmod
+  - Explore devices:   ls -l /dev
+  - Execute the tool:  play_tetris
+BANNER
 EOF
 	
 	chmod a+x etc/init.d/rcS bin/* sbin/*
