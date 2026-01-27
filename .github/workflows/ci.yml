@@ -35,8 +35,8 @@ jobs:
       run: |
         curl https://sh.rustup.rs -sSf | sh -s -- -y
         source $HOME/.cargo/env
-        rustup toolchain install 1.73.0
-        rustup default 1.73.0
+        rustup toolchain install 1.78.0
+        rustup default 1.78.0
         cargo install bindgen-cli --version 0.65.1
 
     - name: Build project
