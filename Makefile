@@ -31,12 +31,14 @@ $(BZIMAGE):
 	@echo "Building linux kernel..."
 	@cd $(KDIR) && yes "" | make LLVM=1 CLIPPY=1 $(TARGET) -j$(NCPU) || [ $$? -eq 141 ]
 
+
+.PHONY: busybox-config
+
 busybox: busybox-config $(BUSYBOX_BIN)
 
 $(BUSYBOX_BIN):
 	@echo "Building busybox..."
 	@cd $(BDIR) && make -j$(NCPU)
-
 
 rootfs: $(ROOTFS)
 
