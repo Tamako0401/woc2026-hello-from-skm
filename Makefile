@@ -93,7 +93,7 @@ run: build
 	scripts/run.sh -b $(BDIR) -k $(KDIR)
 
 setup:
-	SUBMODULE_DEPTH=$(SUBMODULE_DEPTH) scripts/setup.sh
+	- SUBMODULE_DEPTH=$(SUBMODULE_DEPTH) scripts/setup.sh
 
 clean-build:
 	@echo "Cleaning build artifacts..."
