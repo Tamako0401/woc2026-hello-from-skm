@@ -9,6 +9,7 @@ NCPU ?= $(shell nproc)
 
 BZIMAGE := $(KDIR)/arch/x86_64/boot/bzImage
 ROOTFS := $(BDIR)/rootfs.img
+BUSYBOX_CONFIG := $(BDIR)/.config
 BUSYBOX_BIN := $(BDIR)/busybox
 BUSYBOX_INSTALL := $(BDIR)/_install
 
@@ -30,11 +31,12 @@ $(BZIMAGE):
 	@echo "Building linux kernel..."
 	@cd $(KDIR) && yes "" | make LLVM=1 CLIPPY=1 $(TARGET) -j$(NCPU) || [ $$? -eq 141 ]
 
-busybox: $(BUSYBOX_BIN)
+busybox: busybox-config $(BUSYBOX_BIN)
 
 $(BUSYBOX_BIN):
 	@echo "Building busybox..."
-	@cd $(BDIR) && yes "" | make -j$(NCPU) || [ $$? -eq 141 ]
+	@cd $(BDIR) && make -j$(NCPU)
+
 
 rootfs: $(ROOTFS)
 
