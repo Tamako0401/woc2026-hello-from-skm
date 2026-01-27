@@ -35,6 +35,7 @@ jobs:
       run: |
         sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-15 100
         sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-15 100
+        which clang
         clang --version
 
     - name: Install Rust toolchain
@@ -48,6 +49,7 @@ jobs:
     - name: Build project
       run: |
         source $HOME/.cargo/env
+        export CC=clang-15
         export LLVM=1
         export LLVM_IAS=1
         make setup
