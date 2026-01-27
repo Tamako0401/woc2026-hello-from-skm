@@ -34,8 +34,16 @@ $(BZIMAGE):
 .PHONY: busybox-config
 
 busybox-config:
-	@echo "Configuring busybox with default settings..."
-	@cd $(BDIR) && make defconfig
+	@echo "Configuring busybox..."
+	@if [ ! -f $(BDIR)/.config ]; then \
+		cd $(BDIR) && make defconfig; \
+	fi
+
+busybox: busybox-config $(BUSYBOX_BIN)
+
+$(BUSYBOX_BIN):
+	@echo "Building busybox..."
+	@cd $(BDIR) && make -j$(NCPU)
 
 rootfs: $(ROOTFS)
 
