@@ -42,10 +42,13 @@ jobs:
     - name: Build project
       run: |
         source $HOME/.cargo/env
-        export CC=clang-15
+
+        export PATH=/usr/lib/llvm-15/bin:$PATH
         export LLVM=1
         export LLVM_IAS=1
+        export LLVM_VERSION=15
         clang --version
+        
         make setup
         make build
 
