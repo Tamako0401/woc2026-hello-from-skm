@@ -97,6 +97,7 @@ tools-install: tools
 
 repack-rootfs: $(BUSYBOX_INSTALL)
 	@echo "Packing rootfs image..."; \
+	ln -sf sbin/init $(BUSYBOX_INSTALL)/init; \
 	cd $(BUSYBOX_INSTALL) && find . | cpio -o -H newc | gzip > ../rootfs.img; \
 	touch $(ROOTFS_STAMP);
 
