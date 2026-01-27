@@ -1,6 +1,8 @@
 #!/bin/bash
 
-export CC=clang-15
+export LLVM=1
+export LLVM_IAS=1
+export LLVM_VERSION=15
 
 set -euo pipefail
 
