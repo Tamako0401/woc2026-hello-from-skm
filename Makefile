@@ -66,7 +66,7 @@ module-install: module
 	@echo "Installing module to rootfs..."
 	@mkdir -p $(BUSYBOX_INSTALL)/lib/modules
 	@cp $(MODULE_KO) $(BUSYBOX_INSTALL)/lib/modules/
-	@cp $(MODULE_SRC)/magic.ko $(BUSYBOX_INSTALL)/lib/modules/
+#	@cp $(MODULE_SRC)/magic.ko $(BUSYBOX_INSTALL)/lib/modules/
 	@touch $(ROOTFS_STAMP)
 
 tools: $(TDIR)/$(USERSPACE_PROG).c

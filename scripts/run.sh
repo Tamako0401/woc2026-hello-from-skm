@@ -42,14 +42,23 @@ while getopts "b:k:" opt; do
 done
 
 # run the kernel in qemu
+
+if [ -e /dev/kvm ]; then
+	KVM="-enable-kvm"
+  CPU="-cpu host"
+else
+	KVM=""
+  CPU="-cpu qemu64"
+fi
+
 qemu-system-x86_64 \
 	-kernel "$KERNEL"/arch/x86_64/boot/bzImage \
 	-initrd "$BUSYBOX"/rootfs.img \
     -nographic \
     -machine q35 \
-    -enable-kvm \
+    $KVM \
     -device intel-iommu \
-    -cpu host \
+    $CPU \
     -m 4G \
     -nic user,model=virtio-net-pci,hostfwd=tcp::5555-:23,hostfwd=tcp::5556-:8080 \
     -append "console=ttyS0,115200 loglevel=3 rdinit=/sbin/init"
