@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export CC=clang-15
+
 set -euo pipefail
 
 usage() {
