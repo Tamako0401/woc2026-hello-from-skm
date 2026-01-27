@@ -28,8 +28,11 @@ rebuild: clean-build build
 kernel: $(BZIMAGE)
 
 $(BZIMAGE):
+	@echo "Applying custom kernel configuration..."
+	@cp qemu-busybox-min.config $(KDIR)/.config
 	@echo "Building linux kernel..."
-	@cd $(KDIR) && yes "" | make LLVM=1 CLIPPY=1 $(TARGET) -j$(NCPU) || [ $$? -eq 141 ]
+	@cd $(KDIR) && yes "" | make LLVM=1 CLIPPY=1 oldconfig
+	@cd $(KDIR) && make LLVM=1 CLIPPY=1 $(TARGET) -j$(NCPU) || [ $$? -eq 141 ]
 
 .PHONY: busybox-config
 
