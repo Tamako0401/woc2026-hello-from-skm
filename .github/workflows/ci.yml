@@ -31,6 +31,12 @@ jobs:
           qemu-system-x86 \
           cpio
 
+    - name: Use clang-15 as default
+      run: |
+        sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-15 100
+        sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-15 100
+        clang --version
+
     - name: Install Rust toolchain
       run: |
         curl https://sh.rustup.rs -sSf | sh -s -- -y
@@ -41,10 +47,9 @@ jobs:
 
     - name: Build project
       run: |
-        export CC=clang-15
+        source $HOME/.cargo/env
         export LLVM=1
         export LLVM_IAS=1
-        source $HOME/.cargo/env
         make setup
         make build
 
