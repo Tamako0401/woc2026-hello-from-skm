@@ -1,0 +1,71 @@
+name: woc2026 CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout repository with submodules
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          clang \
+          lld \
+          llvm \
+          libelf-dev \
+          libssl-dev \
+          bc \
+          flex \
+          bison \
+          qemu-system-x86 \
+          cpio
+
+    - name: Install Rust toolchain
+      run: |
+        curl https://sh.rustup.rs -sSf | sh -s -- -y
+        source $HOME/.cargo/env
+        rustup toolchain install 1.73.0
+        rustup default 1.73.0
+        cargo install bindgen-cli --version 0.65.1
+
+    - name: Build project
+      run: |
+        source $HOME/.cargo/env
+        make setup
+        make build
+
+    - name: Smoke test (boot kernel)
+      run: |
+        source $HOME/.cargo/env
+        timeout 30s \
+          qemu-system-x86_64 \
+          -kernel linux/arch/x86_64/boot/bzImage \
+          -initrd busybox/rootfs.img \
+          -append "console=ttyS0 panic=-1" \
+          -nographic \
+          -no-reboot \
+          | tee qemu.log || true
+
+        grep -q "Welcome to" qemu.log
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: woc2026-build
+        path: |
+          linux/arch/x86_64/boot/bzImage
+          busybox/rootfs.img
+          src/*.ko
+          tools/*.a
+
