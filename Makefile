@@ -40,6 +40,7 @@ busybox-config:
 	@echo "Configuring busybox..."
 	@if [ ! -f $(BDIR)/.config ]; then \
 		cd $(BDIR) && make defconfig; \
+		sed -i 's/# CONFIG_STATIC is not set/CONFIG_STATIC=y/' $(BDIR)/.config; \
 	fi
 
 busybox: busybox-config $(BUSYBOX_BIN)
