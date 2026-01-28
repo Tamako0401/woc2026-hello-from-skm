@@ -82,6 +82,11 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Lowercase Repository Name
+      id: lowercase_repo
+      run: |
+        echo "REPO_LOWER=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+
     - name: Build and push Docker image
       if: github.event_name != 'pull_request'
       uses: docker/build-push-action@v5
