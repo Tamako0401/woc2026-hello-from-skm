@@ -39,8 +39,9 @@ $(BZIMAGE):
 busybox-config:
 	@echo "Configuring busybox..."
 	@if [ ! -f $(BDIR)/.config ]; then \
-		cd $(BDIR) && make defconfig; \
+		make -C $(BDIR) defconfig; \
 		sed -i 's/# CONFIG_STATIC is not set/CONFIG_STATIC=y/' $(BDIR)/.config; \
+		yes "" | make -C $(BDIR) oldconfig; \
 	fi
 
 busybox: busybox-config $(BUSYBOX_BIN)
@@ -48,6 +49,7 @@ busybox: busybox-config $(BUSYBOX_BIN)
 $(BUSYBOX_BIN):
 	@echo "Building busybox..."
 	@cd $(BDIR) && make -j$(NCPU)
+	@file $(BUSYBOX_BIN) | grep -q "statically linked" || (echo "Error: BusyBox is not statically linked!" && exit 1)
 
 rootfs: $(ROOTFS)
 
