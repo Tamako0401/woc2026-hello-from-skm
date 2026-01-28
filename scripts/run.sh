@@ -43,7 +43,7 @@ done
 
 # run the kernel in qemu
 
-if [ -e /dev/kvm ]; then
+if [ -w /dev/kvm ]; then
 	KVM="-enable-kvm"
   CPU="-cpu host"
 else

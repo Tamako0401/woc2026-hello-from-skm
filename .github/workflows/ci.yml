@@ -55,7 +55,9 @@ jobs:
     - name: Smoke test (boot kernel)
       run: |
         source $HOME/.cargo/env
-        timeout 30s ./scripts/run.sh -k linux -b busybox | tee qemu.kog || true
+        chmod +x scripts/run.sh
+
+        timeout 30s ./scripts/run.sh -k linux -b busybox | tee qemu.log || true
         grep -q "Welcome to" qemu.log
 
     - name: Upload build artifacts
