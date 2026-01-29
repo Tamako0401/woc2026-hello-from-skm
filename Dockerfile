@@ -4,14 +4,15 @@ RUN apk add --no-cache qemu-system-x86_64 bash
 
 WORKDIR /app
 
-COPY linux/arch/x86_64/boot/bzImage /app/bzImage
-COPY busybox/rootfs.img /app/rootfs.img
-COPY scripts/run.sh /app/run.sh
+RUN mkdir -p linux/arch/x86_64/boot/
+RUN mkdir -p busybox/
 
-RUN chmod +x /app/run.sh
+# 左边是CI构建产物路径,右边是容器内路径
+COPY linux/arch/x86_64/boot/bzImage  linux/arch/x86_64/boot/bzImage
+COPY busybox/rootfs.img              busybox/rootfs.img
+COPY scripts/run.sh                  run.sh
 
-EXPOSE 5555 5556
+RUN chmod +x run.sh
 
-ENV IN_CONTAINER=true
-
-CMD ["./run.sh", "-k", ".", "-b", "."]
+# 启动命令不带任何参数，使用默认的 ./linux 和 ./busybox
+CMD ["./run.sh"]
