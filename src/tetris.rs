@@ -741,7 +741,11 @@ pub(crate) fn register_tetris_device(
 
     // Store the shared inner as drvdata for this miscdevice's `struct device`.
     // We store an `Arc<TetrisDeviceInner>` as the drvdata object.
-    dev_ci.set_drvdata(kernel::init::init_from_value(inner))?;
+    dev_ci.set_drvdata(kernel::init::init_from_closure(move |slot| {
+        // SAFETY: `slot` is a valid pointer to uninitialized storage for `Arc<TetrisDeviceInner>`.
+        unsafe { core::ptr::write(slot, inner) };
+        Ok(())
+    }))?;
 
     Ok(reg)
 }
