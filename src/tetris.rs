@@ -723,10 +723,6 @@ pub(crate) fn create_tetris_inner() -> Result<Arc<TetrisDeviceInner>> {
     Ok(inner)
 }
 
-pub(crate) fn create_tetris_device(inner: Arc<TetrisDeviceInner>) -> Result<Arc<TetrisDevice>> {
-    Ok(Arc::new(TetrisDevice { inner }, GFP_KERNEL)?)
-}
-
 pub(crate) fn register_tetris_device(
     inner: Arc<TetrisDeviceInner>,
 ) -> Result<Pin<kernel::alloc::KBox<MiscDeviceRegistration<TetrisDevice>>>> {
@@ -741,11 +737,16 @@ pub(crate) fn register_tetris_device(
 
     // Store the shared inner as drvdata for this miscdevice's `struct device`.
     // We store an `Arc<TetrisDeviceInner>` as the drvdata object.
-    dev_ci.set_drvdata(kernel::init::init_from_closure(move |slot| {
-        // SAFETY: `slot` is a valid pointer to uninitialized storage for `Arc<TetrisDeviceInner>`.
-        unsafe { core::ptr::write(slot, inner) };
-        Ok(())
-    }))?;
+    dev_ci.set_drvdata(unsafe {
+        pin_init::init_from_closure(move |slot| {
+            // SAFETY: `slot` is a valid pointer to uninitialized storage for `Arc<TetrisDeviceInner>`.
+            core::ptr::write(slot, inner);
+            Ok(())
+        })
+    })?;
 
     Ok(reg)
 }
+
+// NOTE: `TetrisDevice` instances are created in `MiscDevice::open`.
+// (Removed unused `create_tetris_device` helper.)
