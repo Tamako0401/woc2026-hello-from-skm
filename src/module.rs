@@ -15,8 +15,10 @@ module! {
 }
 
 struct SASTKernelModule {
+    _tetris_inner: kernel::sync::Arc<tetris::TetrisDeviceInner>,
     _dev:
         Pin<kernel::alloc::KBox<kernel::miscdevice::MiscDeviceRegistration<tetris::TetrisDevice>>>,
+    _debugfs: tetris::TetrisDebugFs,
 }
 
 #[allow(unreachable_code)]
@@ -30,15 +32,24 @@ impl kernel::Module for SASTKernelModule {
         pr_info!("Controls: a=left, d=right, s=down, w=rotate, space=drop, r=reset\n");
 
 //      panic!("Try fix me!");
-        let _dev = tetris::register_tetris_device()?;
+        let _tetris_inner = tetris::create_tetris_inner()?;
+        let _dev = tetris::register_tetris_device(_tetris_inner.clone())?;
+        let _debugfs = tetris::register_tetris_debugfs(_tetris_inner.clone())?;
 
-        Ok(Self { _dev })
+        pr_info!("debugfs: /sys/kernel/debug/tetris/state\n");
+
+        Ok(Self {
+            _tetris_inner,
+            _dev,
+            _debugfs,
+        })
     }
 }
 
 impl Drop for SASTKernelModule {
     fn drop(&mut self) {
-        pr_info!("Tetris module unloading, cleaning up global game state\n");
+        pr_info!("Tetris module unloading\n");
+        tetris::unregister_tetris_debugfs();
         pr_info!("bye bye\n");
     }
 }

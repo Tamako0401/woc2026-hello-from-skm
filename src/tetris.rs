@@ -4,6 +4,8 @@
 //! Tetris game kernel module with character device interface
 
 use kernel::{
+    debugfs,
+    device,
     fs::{File, Kiocb},
     iov::{IovIterDest, IovIterSource},
     miscdevice::{MiscDevice, MiscDeviceOptions, MiscDeviceRegistration},
@@ -532,22 +534,13 @@ pub(crate) struct TetrisDevice {
 }
 
 #[pin_data]
-struct TetrisDeviceInner {
+pub(crate) struct TetrisDeviceInner {
     #[pin]
     game: kernel::sync::Mutex<TetrisGame>,
 }
 
 impl TetrisDevice {
-    fn new() -> Result<Arc<Self>> {
-        let inner = Arc::pin_init(
-            pin_init!(TetrisDeviceInner {
-                game <- kernel::new_mutex!(TetrisGame::new()),
-            }),
-            GFP_KERNEL,
-        )?;
-
-        inner.game.lock().spawn_piece();
-
+    fn new(inner: Arc<TetrisDeviceInner>) -> Result<Arc<Self>> {
         Ok(Arc::new(Self { inner }, GFP_KERNEL)?)
     }
 }
@@ -556,8 +549,21 @@ impl TetrisDevice {
 impl MiscDevice for TetrisDevice {
     type Ptr = Arc<TetrisDevice>;
 
-    fn open(_file: &File, _misc: &MiscDeviceRegistration<Self>) -> Result<Self::Ptr> {
-        TetrisDevice::new()
+    fn open(_file: &File, misc: &MiscDeviceRegistration<Self>) -> Result<Self::Ptr> {
+        // `Device::set_drvdata` / `drvdata_borrow` live on `Device<CoreInternal>`.
+        let dev = misc.device();
+        // SAFETY: the miscdevice's `this_device` is a valid `struct device *` for the lifetime of
+        // the registration.
+        let dev_ci: &device::Device<device::CoreInternal> = unsafe { &*(dev as *const _ as *const _) };
+
+        // SAFETY: we stored an `Arc<TetrisDeviceInner>` in drvdata in `register_tetris_device()` and
+        // we haven't called drvdata_obtain.
+        let inner = unsafe { dev_ci.drvdata_borrow::<Arc<TetrisDeviceInner>>() };
+
+        // `inner` is `Pin<&Arc<_>>`; we just need a cloned `Arc<_>`.
+        let inner = (*inner).clone();
+
+        TetrisDevice::new(inner)
     }
 
     fn read_iter(kiocb: Kiocb<'_, Self::Ptr>, iov: &mut IovIterDest<'_>) -> Result<usize> {
@@ -644,10 +650,98 @@ impl MiscDevice for TetrisDevice {
     }
 }
 
+struct TetrisDebugState {
+    inner: Arc<TetrisDeviceInner>,
+}
+
+impl kernel::debugfs::Writer for TetrisDebugState {
+    fn write(&self, f: &mut kernel::fmt::Formatter<'_>) -> kernel::fmt::Result {
+        let game = self.inner.game.lock();
+
+        writeln!(f, "score: {}", game.score)?;
+        writeln!(f, "game_over: {}", game.game_over)?;
+        writeln!(f, "next_piece: {:?}", game.next_piece_type)?;
+
+        match game.current_piece {
+            Some(p) => {
+                writeln!(
+                    f,
+                    "current_piece: type={:?} x={} y={} rotation={}",
+                    p.piece_type, p.x, p.y, p.rotation
+                )?;
+            }
+            None => {
+                writeln!(f, "current_piece: (none)")?;
+            }
+        }
+
+        writeln!(f, "board:")?;
+        for y in 0..BOARD_HEIGHT {
+            for x in 0..BOARD_WIDTH {
+                let c = if game.board[y][x] { '#' } else { '.' };
+                write!(f, "{}", c)?;
+            }
+            writeln!(f)?;
+        }
+
+        Ok(())
+    }
+}
+
+pub(crate) struct TetrisDebugFs {
+    _dir: debugfs::Dir,
+    _state_file: Pin<kernel::alloc::KBox<kernel::debugfs::File<TetrisDebugState>>>,
+}
+
+pub(crate) fn register_tetris_debugfs(inner: Arc<TetrisDeviceInner>) -> Result<TetrisDebugFs> {
+    let dir = debugfs::Dir::new(c"tetris");
+
+    let _state_file = kernel::alloc::KBox::pin_init(
+        dir.read_only_file(c"state", TetrisDebugState { inner }),
+        GFP_KERNEL,
+    )?;
+
+    Ok(TetrisDebugFs {
+        _dir: dir,
+        _state_file,
+    })
+}
+
+pub(crate) fn unregister_tetris_debugfs() {
+    // Everything is RAII via module fields now.
+}
+
+pub(crate) fn create_tetris_inner() -> Result<Arc<TetrisDeviceInner>> {
+    let inner = Arc::pin_init(
+        pin_init!(TetrisDeviceInner {
+            game <- kernel::new_mutex!(TetrisGame::new()),
+        }),
+        GFP_KERNEL,
+    )?;
+
+    inner.game.lock().spawn_piece();
+    Ok(inner)
+}
+
+pub(crate) fn create_tetris_device(inner: Arc<TetrisDeviceInner>) -> Result<Arc<TetrisDevice>> {
+    Ok(Arc::new(TetrisDevice { inner }, GFP_KERNEL)?)
+}
+
 pub(crate) fn register_tetris_device(
+    inner: Arc<TetrisDeviceInner>,
 ) -> Result<Pin<kernel::alloc::KBox<MiscDeviceRegistration<TetrisDevice>>>> {
-    kernel::alloc::KBox::pin_init(
+    let reg = kernel::alloc::KBox::pin_init(
         MiscDeviceRegistration::register(MiscDeviceOptions { name: c"tetris" }),
         GFP_KERNEL,
-    )
+    )?;
+
+    let dev = reg.device();
+    // SAFETY: `dev` points to a live `struct device` for the lifetime of the registration.
+    let dev_ci: &device::Device<device::CoreInternal> = unsafe { &*(dev as *const _ as *const _) };
+
+    // Store the shared inner as drvdata for this miscdevice's `struct device`.
+    // We store an `Arc<TetrisDeviceInner>` as the drvdata object.
+    dev_ci.set_drvdata(kernel::init::init_from_value(inner))?;
+
+    Ok(reg)
 }
