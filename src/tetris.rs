@@ -342,15 +342,15 @@ impl TetrisGame {
         game
     }
 
-    fn reset(&mut self) {
+    fn reset(&mut self, stats: &TetrisStats) {
         self.board = [[false; BOARD_WIDTH]; BOARD_HEIGHT];
         self.current_piece = None;
         self.score = 0;
         self.game_over = false;
-        self.spawn_piece();
+        self.spawn_piece(stats);
     }
 
-    fn spawn_piece(&mut self) {
+    fn spawn_piece(&mut self, stats: &TetrisStats) {
         if self.game_over {
             return;
         }
@@ -364,6 +364,8 @@ impl TetrisGame {
 
         self.current_piece = Some(new_piece);
         self.next_piece_type = self.next_piece_from_bag();
+
+        stats.pieces_spawned.fetch_add(1, Ordering::Relaxed);
     }
 
     fn next_piece_from_bag(&mut self) -> TetrominoType {
@@ -443,14 +445,14 @@ impl TetrisGame {
         false
     }
 
-    fn move_down(&mut self) -> bool {
+    fn move_down(&mut self, stats: &TetrisStats) -> bool {
         if let Some(mut piece) = self.current_piece {
             piece.y += 1;
             if !self.check_collision(&piece) {
                 self.current_piece = Some(piece);
                 return true;
             } else {
-                self.lock_piece();
+                self.lock_piece(stats);
                 return false;
             }
         }
@@ -468,11 +470,11 @@ impl TetrisGame {
         false
     }
 
-    fn hard_drop(&mut self) {
-        while self.move_down() {}
+    fn hard_drop(&mut self, stats: &TetrisStats) {
+        while self.move_down(stats) {}
     }
 
-    fn lock_piece(&mut self) {
+    fn lock_piece(&mut self, stats: &TetrisStats) {
         if let Some(piece) = self.current_piece.take() {
             let shape = piece.get_shape();
             let (min_x, min_y, max_x, max_y) = piece.get_bounds(&shape);
@@ -490,12 +492,23 @@ impl TetrisGame {
                 }
             }
 
-            self.clear_lines();
-            self.spawn_piece();
+            stats.pieces_locked.fetch_add(1, Ordering::Relaxed);
+
+            let (lines, score_delta) = self.clear_lines();
+            if lines > 0 {
+                stats.lines_cleared.fetch_add(lines as u64, Ordering::Relaxed);
+            }
+            if score_delta > 0 {
+                stats
+                    .score_gained
+                    .fetch_add(score_delta as u64, Ordering::Relaxed);
+            }
+
+            self.spawn_piece(stats);
         }
     }
 
-    fn clear_lines(&mut self) {
+    fn clear_lines(&mut self) -> (u32, u32) {
         let mut lines_cleared = 0;
         let mut write_idx = BOARD_HEIGHT;
 
@@ -517,14 +530,18 @@ impl TetrisGame {
             self.board[write_idx] = [false; BOARD_WIDTH];
         }
 
+        let mut score_delta = 0;
         if lines_cleared > 0 {
-            self.score += match lines_cleared {
+            score_delta = match lines_cleared {
                 1 => 100,
                 2 => 300,
                 3 => 500,
                 _ => 800,
             };
+            self.score += score_delta;
         }
+
+        (lines_cleared, score_delta)
     }
 
     fn render_to_buffer(&self, buffer: &mut [u8]) -> usize {
@@ -735,7 +752,7 @@ impl MiscDevice for TetrisDevice {
                 }
                 b's' | b'S' => {
                     device.inner.stats.down.fetch_add(1, Ordering::Relaxed);
-                    if game.move_down() {
+                    if game.move_down(&device.inner.stats) {
                         device.inner.stats.down_ok.fetch_add(1, Ordering::Relaxed);
                     }
                 }
@@ -747,11 +764,11 @@ impl MiscDevice for TetrisDevice {
                 }
                 b' ' => {
                     device.inner.stats.drop.fetch_add(1, Ordering::Relaxed);
-                    game.hard_drop();
+                    game.hard_drop(&device.inner.stats);
                 }
                 b'r' | b'R' => {
                     device.inner.stats.resets.fetch_add(1, Ordering::Relaxed);
-                    game.reset();
+                    game.reset(&device.inner.stats);
                 }
                 _ => {
                     device
@@ -790,7 +807,7 @@ impl MiscDevice for TetrisDevice {
             }
             TETRIS_IOCTL_DOWN => {
                 device.inner.stats.down.fetch_add(1, Ordering::Relaxed);
-                if game.move_down() {
+                if game.move_down(&device.inner.stats) {
                     device.inner.stats.down_ok.fetch_add(1, Ordering::Relaxed);
                 }
             }
@@ -802,11 +819,11 @@ impl MiscDevice for TetrisDevice {
             }
             TETRIS_IOCTL_DROP => {
                 device.inner.stats.drop.fetch_add(1, Ordering::Relaxed);
-                game.hard_drop();
+                game.hard_drop(&device.inner.stats);
             }
             TETRIS_IOCTL_RESET => {
                 device.inner.stats.resets.fetch_add(1, Ordering::Relaxed);
-                game.reset();
+                game.reset(&device.inner.stats);
             }
             _ => {
                 device
@@ -892,7 +909,7 @@ pub(crate) fn create_tetris_inner() -> Result<Arc<TetrisDeviceInner>> {
         GFP_KERNEL,
     )?;
 
-    inner.game.lock().spawn_piece();
+    inner.game.lock().spawn_piece(&inner.stats);
     Ok(inner)
 }
 
