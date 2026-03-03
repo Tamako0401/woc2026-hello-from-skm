@@ -848,6 +848,10 @@ struct TetrisDebugStats {
     inner: Arc<TetrisDeviceInner>,
 }
 
+struct TetrisDebugStatsReset {
+    inner: Arc<TetrisDeviceInner>,
+}
+
 impl core::fmt::Debug for TetrisDebugState {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let game = self.inner.game.lock();
@@ -923,10 +927,18 @@ impl core::fmt::Debug for TetrisDebugStats {
     }
 }
 
+impl core::fmt::Debug for TetrisDebugStatsReset {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.inner.stats.reset();
+        writeln!(f, "ok")
+    }
+}
+
 pub(crate) struct TetrisDebugFs {
     _dir: debugfs::Dir,
     _state_file: Pin<kernel::alloc::KBox<kernel::debugfs::File<TetrisDebugState>>>,
     _stats_file: Pin<kernel::alloc::KBox<kernel::debugfs::File<TetrisDebugStats>>>,
+    _stats_reset_file: Pin<kernel::alloc::KBox<kernel::debugfs::File<TetrisDebugStatsReset>>>,
 }
 
 pub(crate) fn register_tetris_debugfs(inner: Arc<TetrisDeviceInner>) -> Result<TetrisDebugFs> {
@@ -938,7 +950,12 @@ pub(crate) fn register_tetris_debugfs(inner: Arc<TetrisDeviceInner>) -> Result<T
     )?;
 
     let _stats_file = kernel::alloc::KBox::pin_init(
-        dir.read_only_file(c"stats", TetrisDebugStats { inner }),
+        dir.read_only_file(c"stats", TetrisDebugStats { inner: inner.clone() }),
+        GFP_KERNEL,
+    )?;
+
+    let _stats_reset_file = kernel::alloc::KBox::pin_init(
+        dir.read_only_file(c"stats_reset", TetrisDebugStatsReset { inner: inner.clone() }),
         GFP_KERNEL,
     )?;
 
@@ -946,6 +963,7 @@ pub(crate) fn register_tetris_debugfs(inner: Arc<TetrisDeviceInner>) -> Result<T
         _dir: dir,
         _state_file,
         _stats_file,
+        _stats_reset_file,
     })
 }
 
