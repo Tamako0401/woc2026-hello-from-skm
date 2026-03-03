@@ -848,6 +848,7 @@ struct TetrisDebugStats {
     inner: Arc<TetrisDeviceInner>,
 }
 
+#[allow(dead_code)]
 struct TetrisDebugStatsReset {
     inner: Arc<TetrisDeviceInner>,
 }
@@ -929,10 +930,12 @@ impl core::fmt::Debug for TetrisDebugStats {
 
 impl core::fmt::Debug for TetrisDebugStatsReset {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.inner.stats.reset();
-        writeln!(f, "ok")
+        writeln!(f, "write any value to reset counters")
     }
 }
+
+// NOTE: debugfs provides a blanket `Writer` impl for any `Debug` type.
+// We intentionally avoid a custom `Writer` impl here to prevent conflicting implementations.
 
 pub(crate) struct TetrisDebugFs {
     _dir: debugfs::Dir,
