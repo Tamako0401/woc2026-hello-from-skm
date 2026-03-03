@@ -676,11 +676,14 @@ impl MiscDevice for TetrisDevice {
         // `inner` is `Pin<&Arc<_>>`; we just need a cloned `Arc<_>`.
         let inner = (*inner).clone();
 
+        inner.stats.opens.fetch_add(1, Ordering::Relaxed);
+
         TetrisDevice::new(inner)
     }
 
     fn read_iter(kiocb: Kiocb<'_, Self::Ptr>, iov: &mut IovIterDest<'_>) -> Result<usize> {
         let device = kiocb.file();
+        device.inner.stats.reads.fetch_add(1, Ordering::Relaxed);
         let game = device.inner.game.lock();
 
         let mut buffer = kernel::alloc::KVec::new();
@@ -693,36 +696,70 @@ impl MiscDevice for TetrisDevice {
 
         drop(game);
 
+        device
+            .inner
+            .stats
+            .bytes_read
+            .fetch_add(copied as u64, Ordering::Relaxed);
+
         Ok(copied)
     }
 
     fn write_iter(kiocb: Kiocb<'_, Self::Ptr>, iov: &mut IovIterSource<'_>) -> Result<usize> {
         let device = kiocb.file();
+        device.inner.stats.writes.fetch_add(1, Ordering::Relaxed);
+
         let mut buffer = [0u8; 1];
         let len = iov.copy_from_iter(&mut buffer);
+
+        device
+            .inner
+            .stats
+            .bytes_written
+            .fetch_add(len as u64, Ordering::Relaxed);
 
         if len > 0 {
             let mut game = device.inner.game.lock();
             match buffer[0] {
                 b'a' | b'A' => {
-                    game.move_left();
+                    device.inner.stats.left.fetch_add(1, Ordering::Relaxed);
+                    if game.move_left() {
+                        device.inner.stats.left_ok.fetch_add(1, Ordering::Relaxed);
+                    }
                 }
                 b'd' | b'D' => {
-                    game.move_right();
+                    device.inner.stats.right.fetch_add(1, Ordering::Relaxed);
+                    if game.move_right() {
+                        device.inner.stats.right_ok.fetch_add(1, Ordering::Relaxed);
+                    }
                 }
                 b's' | b'S' => {
-                    game.move_down();
+                    device.inner.stats.down.fetch_add(1, Ordering::Relaxed);
+                    if game.move_down() {
+                        device.inner.stats.down_ok.fetch_add(1, Ordering::Relaxed);
+                    }
                 }
                 b'w' | b'W' => {
-                    game.rotate();
+                    device.inner.stats.rotate.fetch_add(1, Ordering::Relaxed);
+                    if game.rotate() {
+                        device.inner.stats.rotate_ok.fetch_add(1, Ordering::Relaxed);
+                    }
                 }
                 b' ' => {
+                    device.inner.stats.drop.fetch_add(1, Ordering::Relaxed);
                     game.hard_drop();
                 }
                 b'r' | b'R' => {
+                    device.inner.stats.resets.fetch_add(1, Ordering::Relaxed);
                     game.reset();
                 }
-                _ => {}
+                _ => {
+                    device
+                        .inner
+                        .stats
+                        .invalid_inputs
+                        .fetch_add(1, Ordering::Relaxed);
+                }
             }
         }
 
@@ -735,28 +772,50 @@ impl MiscDevice for TetrisDevice {
         cmd: u32,
         _arg: usize,
     ) -> Result<isize> {
+        device.inner.stats.ioctls.fetch_add(1, Ordering::Relaxed);
         let mut game = device.inner.game.lock();
 
         match cmd {
             TETRIS_IOCTL_LEFT => {
-                game.move_left();
+                device.inner.stats.left.fetch_add(1, Ordering::Relaxed);
+                if game.move_left() {
+                    device.inner.stats.left_ok.fetch_add(1, Ordering::Relaxed);
+                }
             }
             TETRIS_IOCTL_RIGHT => {
-                game.move_right();
+                device.inner.stats.right.fetch_add(1, Ordering::Relaxed);
+                if game.move_right() {
+                    device.inner.stats.right_ok.fetch_add(1, Ordering::Relaxed);
+                }
             }
             TETRIS_IOCTL_DOWN => {
-                game.move_down();
+                device.inner.stats.down.fetch_add(1, Ordering::Relaxed);
+                if game.move_down() {
+                    device.inner.stats.down_ok.fetch_add(1, Ordering::Relaxed);
+                }
             }
             TETRIS_IOCTL_ROTATE => {
-                game.rotate();
+                device.inner.stats.rotate.fetch_add(1, Ordering::Relaxed);
+                if game.rotate() {
+                    device.inner.stats.rotate_ok.fetch_add(1, Ordering::Relaxed);
+                }
             }
             TETRIS_IOCTL_DROP => {
+                device.inner.stats.drop.fetch_add(1, Ordering::Relaxed);
                 game.hard_drop();
             }
             TETRIS_IOCTL_RESET => {
+                device.inner.stats.resets.fetch_add(1, Ordering::Relaxed);
                 game.reset();
             }
-            _ => return Err(EINVAL),
+            _ => {
+                device
+                    .inner
+                    .stats
+                    .invalid_ioctls
+                    .fetch_add(1, Ordering::Relaxed);
+                return Err(EINVAL);
+            }
         }
 
         Ok(0)
