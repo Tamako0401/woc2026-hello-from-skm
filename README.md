@@ -1,4 +1,4 @@
- 完成 [SAST Rust 内核模块](https://github.com/f3rmata/woc2026-hello-from-skm) 的编译和运行
+完成 [SAST Rust 内核模块](https://github.com/f3rmata/woc2026-hello-from-skm) 的编译和运行
 >
 > **[加分项] CI/CD**: 配置 GitHub Actions（或 GitLab CI），实现代码 Push 后自动构建 Docker 镜像并推送至镜像仓库 (Docker Hub / GHCR)  
 >  - [x] 任务 1：找到并修复 tetris 模块中的 panic  
@@ -122,6 +122,41 @@
  `echo a > /dev/tetris（左移）`  
  `echo w > /dev/tetris（旋转）`  
  然后再 `cat /sys/kernel/debug/tetris/state`  
+
+## DebugFS (tetris)
+
+This module exposes a few debugging/observability files via DebugFS:
+
+- `/sys/kernel/debug/tetris/state`  \
+  Human-readable snapshot of the full game board and current piece.
+
+- `/sys/kernel/debug/tetris/stats`  \
+  Key/value counters for device + gameplay events (script-friendly).
+
+- `/sys/kernel/debug/tetris/stats_reset`  \
+  Resets all counters. Any read triggers a reset and prints `ok`.
+
+### Example
+
+Inside QEMU:
+
+1. Mount debugfs (if not already mounted):
+
+   ```sh
+   mount -t debugfs none /sys/kernel/debug
+   ```
+
+2. Play a bit (use `tools/play_tetris` or manual writes/ioctls), then inspect stats:
+
+   ```sh
+   cat /sys/kernel/debug/tetris/stats
+   ```
+
+3. Reset counters:
+
+   ```sh
+   cat /sys/kernel/debug/tetris/stats_reset
+   ```
 
 ## Task 4
 > `0001`在Task 2的内核放置了一个`dev1ce`作为小礼物  
