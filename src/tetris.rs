@@ -15,9 +15,120 @@ use kernel::{
     types::ForeignOwnable,
 };
 
+use core::sync::atomic::{AtomicU64, Ordering};
+
 const BOARD_WIDTH: usize = 10;
 const BOARD_HEIGHT: usize = 20;
 const RENDER_BUFFER_SIZE: usize = 4096;
+
+/// Lightweight counters for observability via debugfs.
+///
+/// Design goals:
+/// - hot paths only do relaxed atomic increments
+/// - formatting happens only on debugfs read
+#[allow(dead_code)]
+struct TetrisStats {
+    opens: AtomicU64,
+    reads: AtomicU64,
+    bytes_read: AtomicU64,
+    writes: AtomicU64,
+    bytes_written: AtomicU64,
+    ioctls: AtomicU64,
+    invalid_ioctls: AtomicU64,
+    invalid_inputs: AtomicU64,
+
+    // High-level gameplay counters.
+    resets: AtomicU64,
+    pieces_spawned: AtomicU64,
+    pieces_locked: AtomicU64,
+    lines_cleared: AtomicU64,
+    score_gained: AtomicU64,
+
+    // Input/action counters (attempted + succeeded where it makes sense).
+    left: AtomicU64,
+    right: AtomicU64,
+    down: AtomicU64,
+    rotate: AtomicU64,
+    drop: AtomicU64,
+
+    left_ok: AtomicU64,
+    right_ok: AtomicU64,
+    down_ok: AtomicU64,
+    rotate_ok: AtomicU64,
+
+    created_ns: AtomicU64,
+}
+
+impl TetrisStats {
+    fn new() -> Self {
+        let now = <time::Monotonic as time::ClockSource>::ktime_get() as u64;
+        Self {
+            opens: AtomicU64::new(0),
+            reads: AtomicU64::new(0),
+            bytes_read: AtomicU64::new(0),
+            writes: AtomicU64::new(0),
+            bytes_written: AtomicU64::new(0),
+            ioctls: AtomicU64::new(0),
+            invalid_ioctls: AtomicU64::new(0),
+            invalid_inputs: AtomicU64::new(0),
+
+            resets: AtomicU64::new(0),
+            pieces_spawned: AtomicU64::new(0),
+            pieces_locked: AtomicU64::new(0),
+            lines_cleared: AtomicU64::new(0),
+            score_gained: AtomicU64::new(0),
+
+            left: AtomicU64::new(0),
+            right: AtomicU64::new(0),
+            down: AtomicU64::new(0),
+            rotate: AtomicU64::new(0),
+            drop: AtomicU64::new(0),
+
+            left_ok: AtomicU64::new(0),
+            right_ok: AtomicU64::new(0),
+            down_ok: AtomicU64::new(0),
+            rotate_ok: AtomicU64::new(0),
+
+            created_ns: AtomicU64::new(now),
+        }
+    }
+
+    #[allow(dead_code)]
+    fn reset(&self) {
+        // Keep created_ns so uptime keeps making sense.
+        self.opens.store(0, Ordering::Relaxed);
+        self.reads.store(0, Ordering::Relaxed);
+        self.bytes_read.store(0, Ordering::Relaxed);
+        self.writes.store(0, Ordering::Relaxed);
+        self.bytes_written.store(0, Ordering::Relaxed);
+        self.ioctls.store(0, Ordering::Relaxed);
+        self.invalid_ioctls.store(0, Ordering::Relaxed);
+        self.invalid_inputs.store(0, Ordering::Relaxed);
+
+        self.resets.store(0, Ordering::Relaxed);
+        self.pieces_spawned.store(0, Ordering::Relaxed);
+        self.pieces_locked.store(0, Ordering::Relaxed);
+        self.lines_cleared.store(0, Ordering::Relaxed);
+        self.score_gained.store(0, Ordering::Relaxed);
+
+        self.left.store(0, Ordering::Relaxed);
+        self.right.store(0, Ordering::Relaxed);
+        self.down.store(0, Ordering::Relaxed);
+        self.rotate.store(0, Ordering::Relaxed);
+        self.drop.store(0, Ordering::Relaxed);
+
+        self.left_ok.store(0, Ordering::Relaxed);
+        self.right_ok.store(0, Ordering::Relaxed);
+        self.down_ok.store(0, Ordering::Relaxed);
+        self.rotate_ok.store(0, Ordering::Relaxed);
+    }
+
+    #[allow(dead_code)]
+    fn uptime_ns(&self) -> u64 {
+        let now = <time::Monotonic as time::ClockSource>::ktime_get() as u64;
+        now.saturating_sub(self.created_ns.load(Ordering::Relaxed))
+    }
+}
 
 /// Ioctl command codes
 const TETRIS_IOCTL_LEFT: u32 = 0x8000;
@@ -537,6 +648,8 @@ pub(crate) struct TetrisDevice {
 pub(crate) struct TetrisDeviceInner {
     #[pin]
     game: kernel::sync::Mutex<TetrisGame>,
+    #[pin]
+    stats: TetrisStats,
 }
 
 impl TetrisDevice {
@@ -715,6 +828,7 @@ pub(crate) fn create_tetris_inner() -> Result<Arc<TetrisDeviceInner>> {
     let inner = Arc::pin_init(
         pin_init!(TetrisDeviceInner {
             game <- kernel::new_mutex!(TetrisGame::new()),
+            stats: TetrisStats::new(),
         }),
         GFP_KERNEL,
     )?;
