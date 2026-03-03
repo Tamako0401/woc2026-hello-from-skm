@@ -839,12 +839,17 @@ impl MiscDevice for TetrisDevice {
     }
 }
 
+#[allow(dead_code)]
 struct TetrisDebugState {
     inner: Arc<TetrisDeviceInner>,
 }
 
-impl kernel::debugfs::Writer for TetrisDebugState {
-    fn write(&self, f: &mut kernel::fmt::Formatter<'_>) -> kernel::fmt::Result {
+struct TetrisDebugStats {
+    inner: Arc<TetrisDeviceInner>,
+}
+
+impl core::fmt::Debug for TetrisDebugState {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let game = self.inner.game.lock();
 
         writeln!(f, "score: {}", game.score)?;
@@ -877,22 +882,70 @@ impl kernel::debugfs::Writer for TetrisDebugState {
     }
 }
 
+impl core::fmt::Debug for TetrisDebugStats {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let s = &self.inner.stats;
+
+        // key=value per line for easy scripting.
+        writeln!(f, "uptime_ns={}", s.uptime_ns())?;
+
+        writeln!(f, "opens={}", s.opens.load(Ordering::Relaxed))?;
+        writeln!(f, "reads={}", s.reads.load(Ordering::Relaxed))?;
+        writeln!(f, "bytes_read={}", s.bytes_read.load(Ordering::Relaxed))?;
+        writeln!(f, "writes={}", s.writes.load(Ordering::Relaxed))?;
+        writeln!(f, "bytes_written={}", s.bytes_written.load(Ordering::Relaxed))?;
+        writeln!(f, "ioctls={}", s.ioctls.load(Ordering::Relaxed))?;
+        writeln!(f, "invalid_ioctls={}", s.invalid_ioctls.load(Ordering::Relaxed))?;
+        writeln!(f, "invalid_inputs={}", s.invalid_inputs.load(Ordering::Relaxed))?;
+
+        writeln!(f, "resets={}", s.resets.load(Ordering::Relaxed))?;
+        writeln!(f, "pieces_spawned={}", s.pieces_spawned.load(Ordering::Relaxed))?;
+        writeln!(f, "pieces_locked={}", s.pieces_locked.load(Ordering::Relaxed))?;
+        writeln!(f, "lines_cleared={}", s.lines_cleared.load(Ordering::Relaxed))?;
+        writeln!(f, "score_gained={}", s.score_gained.load(Ordering::Relaxed))?;
+
+        writeln!(f, "left={}", s.left.load(Ordering::Relaxed))?;
+        writeln!(f, "left_ok={}", s.left_ok.load(Ordering::Relaxed))?;
+        writeln!(f, "right={}", s.right.load(Ordering::Relaxed))?;
+        writeln!(f, "right_ok={}", s.right_ok.load(Ordering::Relaxed))?;
+        writeln!(f, "down={}", s.down.load(Ordering::Relaxed))?;
+        writeln!(f, "down_ok={}", s.down_ok.load(Ordering::Relaxed))?;
+        writeln!(f, "rotate={}", s.rotate.load(Ordering::Relaxed))?;
+        writeln!(f, "rotate_ok={}", s.rotate_ok.load(Ordering::Relaxed))?;
+        writeln!(f, "drop={}", s.drop.load(Ordering::Relaxed))?;
+
+        // Include a couple of live game fields for correlation.
+        let game = self.inner.game.lock();
+        writeln!(f, "current_score={}", game.score)?;
+        writeln!(f, "game_over={}", game.game_over)?;
+
+        Ok(())
+    }
+}
+
 pub(crate) struct TetrisDebugFs {
     _dir: debugfs::Dir,
     _state_file: Pin<kernel::alloc::KBox<kernel::debugfs::File<TetrisDebugState>>>,
+    _stats_file: Pin<kernel::alloc::KBox<kernel::debugfs::File<TetrisDebugStats>>>,
 }
 
 pub(crate) fn register_tetris_debugfs(inner: Arc<TetrisDeviceInner>) -> Result<TetrisDebugFs> {
     let dir = debugfs::Dir::new(c"tetris");
 
     let _state_file = kernel::alloc::KBox::pin_init(
-        dir.read_only_file(c"state", TetrisDebugState { inner }),
+        dir.read_only_file(c"state", TetrisDebugState { inner: inner.clone() }),
+        GFP_KERNEL,
+    )?;
+
+    let _stats_file = kernel::alloc::KBox::pin_init(
+        dir.read_only_file(c"stats", TetrisDebugStats { inner }),
         GFP_KERNEL,
     )?;
 
     Ok(TetrisDebugFs {
         _dir: dir,
         _state_file,
+        _stats_file,
     })
 }
 
